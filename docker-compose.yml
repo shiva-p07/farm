@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./server:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - ./server/config.env
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - mongo
+    networks:
+      - farmer-rice-network
+    command: npm run dev
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client:/usr/src/app
+      - /usr/src/app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+    networks:
+      - farmer-rice-network
+    depends_on:
+      - server
+    command: npm start
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - farmer-rice-network
+
+networks:
+  farmer-rice-network:
+    driver: bridge
+
+volumes:
+  mongo-data: 

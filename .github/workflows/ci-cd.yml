@@ -1,0 +1,94 @@
+name: Farmer Rice CI/CD
+
+on:
+  push:
+    branches: [ main, staging, development ]
+  pull_request:
+    branches: [ main, staging, development ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+          
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+        cache: 'npm'
+        
+    - name: Install server dependencies
+      run: |
+        cd server
+        npm ci
+        
+    - name: Run server tests
+      run: |
+        cd server
+        npm test
+      env:
+        MONGO_URI: mongodb://localhost:27017/farmer_rice_test
+        JWT_SECRET: test_secret
+        NODE_ENV: test
+        
+    - name: Install client dependencies
+      run: |
+        cd client
+        npm ci
+        
+    - name: Run client tests
+      run: |
+        cd client
+        npm test
+      env:
+        CI: true
+
+  build-and-deploy:
+    name: Build and Deploy
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+        cache: 'npm'
+      
+    - name: Install and build client
+      run: |
+        cd client
+        npm ci
+        npm run build
+        
+    - name: Deploy client to Netlify
+      uses: nwtgck/actions-netlify@v1.2
+      with:
+        publish-dir: './client/build'
+        production-branch: main
+        deploy-message: "Deploy from GitHub Actions"
+        enable-pull-request-comment: true
+        enable-commit-comment: true
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+    
+    - name: Deploy server to Render
+      run: |
+        # Replace with actual deployment command for your cloud service
+        echo "Deploying server to Render..."
+        # curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' 
